@@ -1,0 +1,20 @@
+[
+  {
+    "id": "JOR-123",
+    "title": "Review the login flow",
+    "description": "Fixture ticket for the local sync prototype.",
+    "status": "open",
+    "priority": 2,
+    "assignee": "Ada",
+    "comments": []
+  },
+  {
+    "id": "JOR-124",
+    "title": "Document the support handoff",
+    "description": "Another fixture for ticket listing.",
+    "status": "done",
+    "priority": 3,
+    "assignee": "Lin",
+    "comments": []
+  }
+]

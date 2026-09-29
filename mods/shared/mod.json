@@ -1,0 +1,10 @@
+{
+  "name": "shared",
+  "version": "0.1.0",
+  "author": "Ragnarok Offline",
+  "description": "Shared helpers for local integration mods.",
+  "requires": {
+    "app": ">=1.3.5",
+    "era": "any"
+  }
+}

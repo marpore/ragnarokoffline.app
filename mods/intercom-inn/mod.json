@@ -1,0 +1,7 @@
+{
+  "name": "intercom-inn",
+  "version": "0.1.0",
+  "author": "Ragnarok Offline",
+  "description": "Stub for Intercom conversations at the inn.",
+  "requires": { "app": ">=1.3.5", "era": "any" }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "alerts-board",
+  "version": "0.1.0",
+  "author": "Ragnarok Offline",
+  "description": "Stub for the Sentry alerts board.",
+  "requires": { "app": ">=1.3.5", "era": "any" }
+}

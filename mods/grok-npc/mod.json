@@ -1,0 +1,7 @@
+{
+  "name": "grok-npc",
+  "version": "0.1.0",
+  "author": "Ragnarok Offline",
+  "description": "Stub for the Grok helper NPC.",
+  "requires": { "app": ">=1.3.5", "era": "any" }
+}

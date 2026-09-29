@@ -1,0 +1,9 @@
+[
+  {
+    "id": "ISSUE-7",
+    "title": "Fixture asset request failure",
+    "level": "error",
+    "status": "unresolved",
+    "url": "https://sentry.example/issues/ISSUE-7"
+  }
+]

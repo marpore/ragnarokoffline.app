@@ -1,0 +1,10 @@
+[
+  {
+    "id": "42",
+    "title": "Improve login flow",
+    "state": "open",
+    "ci": "success",
+    "ticketId": "JOR-123",
+    "url": "https://github.com/example/ragnarok-offline/pull/42"
+  }
+]

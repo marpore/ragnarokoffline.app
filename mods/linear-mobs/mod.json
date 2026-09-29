@@ -1,0 +1,7 @@
+{
+  "name": "linear-mobs",
+  "version": "0.1.0",
+  "author": "Ragnarok Offline",
+  "description": "Stub for Linear ticket mobs on member islands.",
+  "requires": { "app": ">=1.3.5", "era": "any" }
+}

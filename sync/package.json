@@ -1,0 +1,12 @@
+{
+  "name": "ragnarok-offline-sync",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "sync:dev": "node server.js",
+    "sync:test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
