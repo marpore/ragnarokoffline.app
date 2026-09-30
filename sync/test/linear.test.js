@@ -25,15 +25,23 @@ function graphResponse(data, status = 200) {
   };
 }
 
-function ticketsConnection(nodes, hasNextPage = false, endCursor = null) {
-  return { issues: { nodes, pageInfo: { hasNextPage, endCursor } } };
+function ticketsConnection(nodes, hasNextPage = false, endCursor = null, root = 'viewer') {
+  const connection = { nodes, pageInfo: { hasNextPage, endCursor } };
+  return root === 'issues'
+    ? { issues: connection }
+    : { viewer: { assignedIssues: connection } };
+}
+
+function listResponse(body, nodes, hasNextPage = false, endCursor = null) {
+  const root = /viewer\s*\{/.test(body.query) ? 'viewer' : 'issues';
+  return graphResponse({ data: ticketsConnection(nodes, hasNextPage, endCursor, root) });
 }
 
 test('pullOpenIssues sends the raw API key, queries open issue types, and maps Linear shape', async () => {
   let request;
   const fetchImpl = async (url, init) => {
     request = { url, init, body: JSON.parse(init.body) };
-    return graphResponse({ data: ticketsConnection([issueNode()]) });
+    return listResponse(request.body, [issueNode()]);
   };
 
   const tickets = await pullOpenIssues({ apiKey: 'lin_api_test', fetchImpl });
@@ -41,10 +49,10 @@ test('pullOpenIssues sends the raw API key, queries open issue types, and maps L
   assert.equal(request.url, 'https://api.linear.app/graphql');
   assert.equal(request.init.method, 'POST');
   assert.equal(request.init.headers.authorization, 'lin_api_test');
-  assert.match(request.body.query, /issues\s*\(/);
+  assert.match(request.body.query, /assignedIssues\s*\(/);
+  assert.match(request.body.query, /viewer\s*\{[\s\S]*assignedIssues/);
   assert.match(request.body.query, /state|type/i);
-  assert.ok(JSON.stringify(request.body).includes('unstarted'));
-  assert.ok(JSON.stringify(request.body).includes('started'));
+  assert.deepEqual(request.body.variables.filter.state.type.in, ['triage', 'backlog', 'unstarted', 'started']);
   assert.deepEqual(tickets, [{
     id: 'RO-101',
     title: 'Add local sync',
@@ -64,8 +72,8 @@ test('pullOpenIssues applies optional team and project filters and follows pagin
   const fetchImpl = async (_url, init) => {
     const body = JSON.parse(init.body);
     calls.push(body);
-    if (calls.length === 1) return graphResponse({ data: ticketsConnection([issueNode()], true, 'cursor-1') });
-    return graphResponse({ data: ticketsConnection([issueNode({ id: 'linear-2', identifier: 'RO-102', title: 'Next page' })]) });
+    if (calls.length === 1) return listResponse(body, [issueNode()], true, 'cursor-1');
+    return listResponse(body, [issueNode({ id: 'linear-2', identifier: 'RO-102', title: 'Next page' })]);
   };
 
   const tickets = await pullOpenIssues({
@@ -76,9 +84,45 @@ test('pullOpenIssues applies optional team and project filters and follows pagin
   assert.deepEqual(tickets.map(ticket => ticket.id), ['RO-101', 'RO-102']);
   const first = JSON.stringify(calls[0]);
   const second = JSON.stringify(calls[1]);
-  assert.ok(first.includes('team-1'));
-  assert.ok(first.includes('project-1'));
+  assert.equal(calls[0].variables.filter.team.id.eq, 'team-1');
+  assert.equal(calls[0].variables.filter.project.id.eq, 'project-1');
+  assert.deepEqual(calls[0].variables.filter.state.type.in, ['triage', 'backlog', 'unstarted', 'started']);
   assert.ok(second.includes('cursor-1'));
+});
+
+test('assignee all uses the root issues query and supports both server configuration forms', async () => {
+  let pullRequest;
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    pullRequest = body;
+    return listResponse(body, [issueNode()]);
+  };
+  const allTickets = await pullOpenIssues({ apiKey: 'lin_api_test', assignee: 'all', fetchImpl });
+  assert.equal(allTickets[0].id, 'RO-101');
+  assert.match(pullRequest.query, /issues\s*\(/);
+  assert.doesNotMatch(pullRequest.query, /assignedIssues/);
+
+  for (const options of [{ linearAssignee: 'all' }, { linearPullAll: true }]) {
+    const server = createSyncServer({
+      linearApiKey: 'lin_api_test',
+      ...options,
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        assert.match(body.query, /issues\s*\(/);
+        assert.doesNotMatch(body.query, /assignedIssues/);
+        return listResponse(body, [issueNode()]);
+      },
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/linear/tickets`);
+      const body = await response.json();
+      assert.equal(response.status, 200);
+      assert.equal(body.tickets[0].id, 'RO-101');
+    } finally {
+      await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  }
 });
 
 test('pullIssue fetches one issue by identifier and maps it to the ticket shape', async () => {
@@ -158,9 +202,9 @@ test('live mode serves on-demand GraphQL issue list and by-id reads through HTTP
     if (/issue\s*\(/.test(body.query)) {
       return graphResponse({ data: { issue: issueNode({ id: 'linear-404', identifier: body.variables.id, title: 'HTTP detail' }) } });
     }
-    return graphResponse({ data: ticketsConnection([issueNode({ identifier: 'RO-303', title: 'HTTP list' })]) });
+    return listResponse(body, [issueNode({ identifier: 'RO-303', title: 'HTTP list' })]);
   };
-  const server = createSyncServer({ linearApiKey: 'lin_api_test', fetchImpl });
+  const server = createSyncServer({ linearApiKey: 'lin_api_test', linearAssignee: 'me', linearPullAll: false, fetchImpl });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   try {
     const base = `http://127.0.0.1:${server.address().port}`;

@@ -70,9 +70,12 @@ function createSyncServer(options = {}) {
     linearApiKey = process.env.LINEAR_API_KEY,
     linearTeamId = process.env.LINEAR_TEAM_ID,
     linearProjectId = process.env.LINEAR_PROJECT_ID,
+    linearAssignee = process.env.LINEAR_ASSIGNEE,
+    linearPullAll = process.env.LINEAR_PULL_ALL === '1',
     fetchImpl = globalThis.fetch,
   } = options;
   const apiKey = linearApiKey?.trim();
+  const pullAll = linearPullAll || linearAssignee?.trim().toLowerCase() === 'all';
   let source = 'fixtures';
   let pullFailed = false;
   let pullPromise;
@@ -81,7 +84,8 @@ function createSyncServer(options = {}) {
     if (!apiKey) return;
     if (!pullPromise) {
       pullPromise = pullOpenIssues({
-        apiKey, teamId: linearTeamId, projectId: linearProjectId, fetchImpl,
+        apiKey, teamId: linearTeamId, projectId: linearProjectId,
+        assignee: pullAll ? 'all' : 'me', fetchImpl,
       }).then(tickets => {
         store.tickets = new Map(tickets.map(ticket => [ticket.id, ticket]));
         source = 'linear';
@@ -112,7 +116,7 @@ function createSyncServer(options = {}) {
           openTicketCount: tickets.filter(ticket => ticket.status === 'open').length,
           prCount: store.prs.size,
           issueCount: store.issues.size,
-          ...(apiKey ? { linearPullFailed: pullFailed } : {}),
+          ...(apiKey ? { linearPullFailed: pullFailed, linearAssignee: pullAll ? 'all' : 'me' } : {}),
         });
       }
 
@@ -129,7 +133,7 @@ function createSyncServer(options = {}) {
         await ensurePulled();
         const id = decodeURIComponent((ticketMatch || commentMatch)[1]);
         let ticket = store.tickets.get(id);
-        if (!ticket && apiKey && source === 'linear') {
+        if (!ticket && apiKey) {
           try {
             ticket = await pullIssue({ apiKey, id, fetchImpl });
             if (ticket) store.tickets.set(ticket.id, ticket);
