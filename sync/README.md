@@ -17,7 +17,14 @@ export LINEAR_API_KEY='your-key'
 npm run sync:dev
 ```
 
-The server sends the key as Linear's `Authorization` header to `https://api.linear.app/graphql`. `.env.example` lists the variables but is not loaded automatically. Optional `LINEAR_TEAM_ID` and `LINEAR_PROJECT_ID` scope the pull to a team or project UUID. By default the query includes all teams and projects, filters workflow types to triage, backlog, unstarted, and started, and follows all pages of 50 issues. The resulting ticket has `status: "open"` for `/linear/tickets?status=open` and `linearStatus` for its exact Linear workflow name. A by-ID cache miss fetches the issue directly from Linear, including completed issues. Pulls are on demand once per process; restart to refresh the full list. Webhooks can update it between restarts.
+The server sends the key as Linear's `Authorization` header to `https://api.linear.app/graphql`. `.env.example` lists the variables but is not loaded automatically. By default, Linear's documented `viewer.assignedIssues` query pulls issues assigned to the API key's user. Its state type filter includes triage, backlog, unstarted, and started, which excludes all completed and canceled workflow states regardless of their names. Optional `LINEAR_TEAM_ID` and `LINEAR_PROJECT_ID` scope that personal list further by UUID.
+
+For debugging, set `LINEAR_ASSIGNEE=all` or `LINEAR_PULL_ALL=1` to restore the previous all-open-issues query while keeping the state, team, and project filters. The resulting ticket has `status: "open"` for `/linear/tickets?status=open` and `linearStatus` for its exact Linear workflow name. A by-ID cache miss fetches the requested issue directly, even if it is completed or canceled; the list remains limited to your open issues. Pulls happen on demand once per process; restart to refresh the list. Webhooks can update it between restarts.
+
+```sh
+LINEAR_ASSIGNEE=all npm run sync:dev
+# or: LINEAR_PULL_ALL=1 npm run sync:dev
+```
 
 In another terminal:
 

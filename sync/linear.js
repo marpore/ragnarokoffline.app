@@ -12,6 +12,14 @@ const OPEN_ISSUES_QUERY = `query SyncOpenIssues($filter: IssueFilter!, $after: S
     pageInfo { hasNextPage endCursor }
   }
 }`;
+const ASSIGNED_OPEN_ISSUES_QUERY = `query SyncAssignedOpenIssues($filter: IssueFilter!, $after: String) {
+  viewer {
+    assignedIssues(first: 50, after: $after, filter: $filter, orderBy: updatedAt) {
+      nodes { ${ISSUE_FIELDS} }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`;
 const ISSUE_QUERY = `query SyncIssue($id: String!) {
   issue(id: $id) { ${ISSUE_FIELDS} }
 }`;
@@ -48,16 +56,17 @@ async function graphql({ apiKey, query, variables, fetchImpl }) {
   return result.data;
 }
 
-async function pullOpenIssues({ apiKey, teamId, projectId, fetchImpl = globalThis.fetch }) {
+async function pullOpenIssues({ apiKey, teamId, projectId, assignee = 'me', fetchImpl = globalThis.fetch }) {
   const filter = { state: { type: { in: ['triage', 'backlog', 'unstarted', 'started'] } } };
   if (teamId) filter.team = { id: { eq: teamId } };
   if (projectId) filter.project = { id: { eq: projectId } };
+  const query = assignee === 'all' ? OPEN_ISSUES_QUERY : ASSIGNED_OPEN_ISSUES_QUERY;
   const tickets = [];
   const seenCursors = new Set();
   let after = null;
   for (;;) {
-    const data = await graphql({ apiKey, query: OPEN_ISSUES_QUERY, variables: { filter, after }, fetchImpl });
-    const connection = data.issues;
+    const data = await graphql({ apiKey, query, variables: { filter, after }, fetchImpl });
+    const connection = assignee === 'all' ? data.issues : data.viewer?.assignedIssues;
     if (!Array.isArray(connection?.nodes) || !connection.pageInfo) throw new Error('Invalid Linear issues response');
     tickets.push(...connection.nodes.map(toTicket));
     if (!connection.pageInfo.hasNextPage) return tickets;
