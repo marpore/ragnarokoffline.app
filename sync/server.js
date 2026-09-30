@@ -3,6 +3,7 @@
 const http = require('node:http');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
+const { pullOpenIssues, pullIssue } = require('./linear');
 
 function fixture(name) {
   return JSON.parse(readFileSync(join(__dirname, 'fixtures', name), 'utf8'));
@@ -63,7 +64,36 @@ function issueFromWebhook(payload) {
   };
 }
 
-function createSyncServer(store = createStore()) {
+function createSyncServer(options = {}) {
+  const {
+    store = createStore(),
+    linearApiKey = process.env.LINEAR_API_KEY,
+    linearTeamId = process.env.LINEAR_TEAM_ID,
+    linearProjectId = process.env.LINEAR_PROJECT_ID,
+    fetchImpl = globalThis.fetch,
+  } = options;
+  const apiKey = linearApiKey?.trim();
+  let source = 'fixtures';
+  let pullFailed = false;
+  let pullPromise;
+
+  async function ensurePulled() {
+    if (!apiKey) return;
+    if (!pullPromise) {
+      pullPromise = pullOpenIssues({
+        apiKey, teamId: linearTeamId, projectId: linearProjectId, fetchImpl,
+      }).then(tickets => {
+        store.tickets = new Map(tickets.map(ticket => [ticket.id, ticket]));
+        source = 'linear';
+        pullFailed = false;
+      }).catch(error => {
+        pullFailed = true;
+        console.error('Linear pull failed: ' + error.message);
+      });
+    }
+    await pullPromise;
+  }
+
   return http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
@@ -73,18 +103,21 @@ function createSyncServer(store = createStore()) {
       if (method === 'GET' && path === '/health') return send(res, 200, { ok: true });
 
       if (method === 'GET' && path === '/sync/status') {
+        await ensurePulled();
         const tickets = [...store.tickets.values()];
         return send(res, 200, {
           ok: true,
-          source: 'fixtures',
+          source,
           ticketCount: tickets.length,
           openTicketCount: tickets.filter(ticket => ticket.status === 'open').length,
           prCount: store.prs.size,
           issueCount: store.issues.size,
+          ...(apiKey ? { linearPullFailed: pullFailed } : {}),
         });
       }
 
       if (method === 'GET' && path === '/linear/tickets') {
+        await ensurePulled();
         const status = url.searchParams.get('status');
         const tickets = [...store.tickets.values()].filter(ticket => !status || ticket.status === status);
         return send(res, 200, { tickets });
@@ -93,14 +126,23 @@ function createSyncServer(store = createStore()) {
       const ticketMatch = /^\/linear\/tickets\/([^/]+)$/.exec(path);
       const commentMatch = /^\/linear\/tickets\/([^/]+)\/comments$/.exec(path);
       if (ticketMatch || commentMatch) {
+        await ensurePulled();
         const id = decodeURIComponent((ticketMatch || commentMatch)[1]);
-        const ticket = store.tickets.get(id);
+        let ticket = store.tickets.get(id);
+        if (!ticket && apiKey && source === 'linear') {
+          try {
+            ticket = await pullIssue({ apiKey, id, fetchImpl });
+            if (ticket) store.tickets.set(ticket.id, ticket);
+          } catch {
+            return send(res, 502, { error: 'linear_unavailable' });
+          }
+        }
         if (!ticket) return send(res, 404, { error: 'not_found' });
         if (method === 'GET' && ticketMatch) return send(res, 200, ticket);
         if (method === 'POST' && commentMatch) {
           const body = await readJson(req);
           if (typeof body.body !== 'string' || !body.body.trim()) return send(res, 400, { error: 'invalid_comment' });
-          ticket.comments.push({ id: `local-${store.nextCommentId++}`, body: body.body.trim(), createdAt: new Date().toISOString() });
+          ticket.comments.push({ id: 'local-' + store.nextCommentId++, body: body.body.trim(), createdAt: new Date().toISOString() });
           return send(res, 200, ticket);
         }
         if (method === 'PATCH' && ticketMatch) {
@@ -123,6 +165,7 @@ function createSyncServer(store = createStore()) {
       if (method === 'GET' && issueMatch) return send(res, store.issues.has(issueMatch[1]) ? 200 : 404, store.issues.get(issueMatch[1]) || { error: 'not_found' });
 
       if (method === 'POST' && path === '/hooks/linear') {
+        await ensurePulled();
         const payload = await readJson(req);
         const issue = issueFromWebhook(payload);
         if (!issue) return send(res, 400, { error: 'invalid_linear_issue' });

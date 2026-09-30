@@ -1,6 +1,6 @@
 # Local sync v0
 
-This standalone Node server serves fixture data from `fixtures/*.json`. Writes and Linear webhooks update an in-memory cache, which resets when the process restarts. It binds to `127.0.0.1` and does not start Electron, Docker, or the game.
+This standalone Node server keeps a local in-memory ticket cache. With `LINEAR_API_KEY` set, the first ticket/status request pulls open Linear issues through GraphQL; without a key, it serves `fixtures/*.json` exactly as before. If a pull fails, fixtures remain available and `/sync/status` reports `linearPullFailed: true`. Local comments, PATCH updates, and Linear webhooks update only this cache and reset on restart. The server binds to `127.0.0.1` and does not start Electron, Docker, or the game.
 
 Requires Node 20 or newer. From this directory:
 
@@ -10,7 +10,14 @@ npm run sync:test
 npm run sync:dev
 ```
 
-`PORT=8787` is the default; set `PORT` in the shell to override it. `.env.example` documents future server-side credentials; this v0 does not read or use them.
+`PORT=8787` is the default; set `PORT` in the shell to override it. To pull from Linear, set your personal API key in the server environment (do not put it in a Mod or commit it):
+
+```sh
+export LINEAR_API_KEY='your-key'
+npm run sync:dev
+```
+
+The server sends the key as Linear's `Authorization` header to `https://api.linear.app/graphql`. `.env.example` lists the variables but is not loaded automatically. Optional `LINEAR_TEAM_ID` and `LINEAR_PROJECT_ID` scope the pull to a team or project UUID. By default the query includes all teams and projects, filters workflow types to triage, backlog, unstarted, and started, and follows all pages of 50 issues. The resulting ticket has `status: "open"` for `/linear/tickets?status=open` and `linearStatus` for its exact Linear workflow name. A by-ID cache miss fetches the issue directly from Linear, including completed issues. Pulls are on demand once per process; restart to refresh the full list. Webhooks can update it between restarts.
 
 In another terminal:
 
