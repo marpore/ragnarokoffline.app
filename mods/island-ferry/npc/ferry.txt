@@ -21,10 +21,10 @@ prontera,155,178,4	script	Ferryman Osric#ferry	4_M_SEAMAN,{
 		close;
 	}
 	mes "[Ferryman Osric]";
-	mes "Mind the Porings.";
+	mes "This trip leaves your savepoint unchanged. The island ferryman can set it back to Prontera.";
 	close2;
 	// warp is the scripted version of the square above. close2 first, so the
-	// dialogue box is gone before the map changes.
+	// dialogue box is gone before the map changes. Do not savepoint on ro_isle.
 	warp "ro_isle", 40, 40;
 	end;
 }

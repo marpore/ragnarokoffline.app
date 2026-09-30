@@ -1,7 +1,26 @@
 // ro_isle is kept clear for the generated Linear ticket NPCs in linear-mobs.
-// The generated tickets use a 10 by 10 grid and share one stock sprite.
+// The generated tickets use a 10 by 10 grid and share status/PR sprites.
 
-// A way home, well away from where the ferry drops you -- a return warp placed
-// on the arrival point teleports you straight back out again, which looks
-// exactly like the map not working.
-ro_isle,40,68,0	warp	Isle Boat Home#roisle	3,3,prontera,154,178
+// Talkable return NPC just south of the ferry landing. Going home makes the
+// player's savepoint Prontera before moving them there.
+ro_isle,40,44,4	script	Isle Ferryman#islereturnnpc	4_M_SEAMAN,{
+	mes "[Isle Ferryman]";
+	mes "Back to Prontera?";
+	next;
+	if (select("Back to Prontera?:Stay here") == 2) {
+		close;
+	}
+	savepoint "prontera",154,178;
+	close2;
+	warp "prontera",154,178;
+	end;
+}
+
+// A small invisible walk-over square beside the ferryman. It applies the
+// same savepoint rule as the dialogue route.
+ro_isle,40,47,0	script	Return Square#islereturnwarp	-1,1,1,{
+OnTouch:
+	savepoint "prontera",154,178;
+	warp "prontera",154,178;
+	end;
+}

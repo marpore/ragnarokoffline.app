@@ -10,6 +10,13 @@ const GRID = {
   x: [8, 15, 22, 29, 35, 45, 51, 57, 64, 71],
   y: [10, 16, 22, 28, 34, 40, 46, 52, 58, 64],
 };
+const MAX_NPC_LABEL_LENGTH = 23;
+const STATUS_STYLES = {
+  todo: { prefix: 'T', noPr: '4_M_SAGE_A', pr: '4_M_SAGE_C' },
+  progress: { prefix: 'P', noPr: '4_M_ALCHE', pr: '4_M_MAGE' },
+  review: { prefix: 'R', noPr: '4_M_KNIGHT', pr: '4_M_KNIGHT_GOLD' },
+  other: { prefix: '?', noPr: '4_F_SAGE', pr: '4_M_CRU' },
+};
 
 function clean(value) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -48,12 +55,60 @@ function priorityRank(priority) {
   return Number.isInteger(n) && n >= 1 && n <= 4 ? n : 5;
 }
 
-function displayName(ticket) {
-  const id = clean(ticket.id).replace(/#/g, '-');
-  // NPC header names cannot contain :, ;, or other script delimiters or the whole file fails to parse.
-  const title = clean(ticket.title).replace(/"/g, "'").replace(/[:;#{}|,\/\\]/g, ' ').replace(/\s+/g, ' ').trim();
-  const room = Math.max(4, 23 - Array.from(id).length - 1);
-  return `${id} ${Array.from(title).slice(0, room).join('')}`.trim();
+function statusBucket(ticket) {
+  const status = clean(ticket.linearStatus || ticket.status).toLowerCase().replace(/\s+/g, ' ');
+  if (['in progress', 'started'].includes(status)) return 'progress';
+  if (['in review', 'code review', 'review', 'qa', 'testing'].includes(status)) return 'review';
+  if (['blocked', 'on hold', 'waiting', 'paused', 'other'].includes(status)) return 'other';
+  // Todo, Backlog, Triage, Unstarted, and unknown open states use the TODO
+  // look so a new workflow name remains visible and predictable.
+  return 'todo';
+}
+
+function openPr(ticket) {
+  if (ticket.pr && typeof ticket.pr === 'object') {
+    const state = clean(ticket.pr.state || ticket.pr.status).toLowerCase();
+    if (state && state !== 'open') return null;
+    return ticket.pr;
+  }
+  if (typeof ticket.prUrl === 'string' && ticket.prUrl) return { url: ticket.prUrl, state: 'open' };
+  return null;
+}
+
+function enrichTicketsWithOpenPrs(tickets, prs) {
+  const index = new Map();
+  for (const pr of (Array.isArray(prs) ? prs : []).slice().sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
+    if (String(pr.state || '').toLowerCase() !== 'open' || typeof pr.ticketId !== 'string') continue;
+    if (!index.has(pr.ticketId)) index.set(pr.ticketId, pr);
+  }
+  return tickets.map(ticket => {
+    if (openPr(ticket)) return ticket;
+    const pr = index.get(ticket.id);
+    return pr ? { ...ticket, pr, prUrl: pr.url || null } : ticket;
+  });
+}
+
+function visualForTicket(ticket) {
+  const bucket = statusBucket(ticket);
+  const pr = openPr(ticket);
+  const style = STATUS_STYLES[bucket];
+  return {
+    bucket,
+    prefix: `[${style.prefix}${pr ? '*' : ''}]`,
+    hasPr: Boolean(pr),
+    prUrl: pr?.url || (pr ? ticket.prUrl || null : null),
+    sprite: pr ? style.pr : style.noPr,
+  };
+}
+
+function displayName(ticket, visual) {
+  const safeId = clean(ticket.id).replace(/[:;#{}|,/\\]/g, '-').replace(/"/g, "'");
+  const title = clean(ticket.title).replace(/[:;#{}|,/\\]/g, ' ').replace(/"/g, "'");
+  const prefix = visual.prefix + ' ';
+  const id = Array.from(safeId).slice(0, MAX_NPC_LABEL_LENGTH - Array.from(prefix).length).join('');
+  const titleRoom = MAX_NPC_LABEL_LENGTH - Array.from(prefix + id).length - (title ? 1 : 0);
+  return (prefix + id + (titleRoom > 0 && title ? ' ' + Array.from(title).slice(0, titleRoom).join('') : ''))
+    .replace(/\s+/g, ' ').trim().slice(0, MAX_NPC_LABEL_LENGTH);
 }
 
 function renderTicketNpcs(tickets, { limit = MAX_TICKETS } = {}) {
@@ -77,29 +132,39 @@ function renderTicketNpcs(tickets, { limit = MAX_TICKETS } = {}) {
     const x = GRID.x[column];
     const y = GRID.y[row];
     const id = clean(ticket.id);
-    const npcLabel = displayName(ticket).replace(/#/g, '-');
+    const visual = visualForTicket(ticket);
+    const npcLabel = displayName(ticket, visual);
     const priority = Number.isInteger(Number(ticket.priority)) ? Number(ticket.priority) : 0;
     const comments = Array.isArray(ticket.comments) ? ticket.comments.slice(-MAX_COMMENTS) : [];
+    const linearUrl = typeof ticket.url === 'string' && /^https?:\/\//i.test(ticket.url) ? ticket.url : '';
+    const prUrl = typeof visual.prUrl === 'string' && /^https?:\/\//i.test(visual.prUrl) ? visual.prUrl : '';
 
-    lines.push(`ro_isle,${x},${y},4\tscript\t${npcLabel}#lnticket${String(index + 1).padStart(3, '0')}\t4_M_SAGE_A,{`);
-    lines.push(`\tmes ${scriptString(id)};`);
+    lines.push(`ro_isle,${x},${y},4\tscript\t${npcLabel}#lnticket${String(index + 1).padStart(3, '0')}\t${visual.sprite},{`);
+    lines.push(`\tmes ${scriptString('Ticket: ' + id)};`);
     lines.push(`\tmes ${scriptString('Title:')};`);
     for (const part of wrap(ticket.title)) lines.push(`\tmes ${scriptString(part)};`);
     lines.push(`\tmes ${scriptString('Status: ' + (ticket.linearStatus || ticket.status || 'Unknown'))};`);
     lines.push(`\tmes ${scriptString('Priority: ' + (priority === 0 ? 'No priority' : priority))};`);
     lines.push(`\tmes ${scriptString('Assignee: ' + (clean(ticket.assignee) || 'Unassigned'))};`);
+    lines.push(`\tmes ${scriptString('PR: ' + (prUrl || (visual.hasPr ? 'Linked PR (URL unavailable)' : 'No PR')))};`);
+    lines.push(`\tmes ${scriptString('Linear: ' + (linearUrl || 'No Linear link'))};`);
+    lines.push('\tnext;');
+    lines.push(`\t.@action = select(${scriptString('Show Linear link:Show PR link:Recent comments:Leave')});`);
+    lines.push('\tif (.@action == 1) {', `\t\tmes ${scriptString(linearUrl || 'No Linear link')};`, '\t\tclose;', '\t}');
+    lines.push('\tif (.@action == 2) {', `\t\tmes ${scriptString(prUrl || (visual.hasPr ? 'Linked PR URL unavailable' : 'No linked PR'))};`, '\t\tclose;', '\t}');
+    lines.push('\tif (.@action == 3) {');
     if (comments.length) {
-      lines.push(`\tmes ${scriptString('Recent comments:')};`);
+      lines.push(`\t\tmes ${scriptString('Recent comments:')};`);
       for (const comment of comments) {
         const author = clean(typeof comment === 'object' && comment ? comment.user : '');
         const body = clean(typeof comment === 'string' ? comment : comment?.body);
         if (!body) continue;
-        for (const part of wrap((author ? author + ': ' : '') + body)) lines.push(`\tmes ${scriptString('- ' + part)};`);
+        for (const part of wrap((author ? author + ': ' : '') + body)) lines.push(`\t\tmes ${scriptString(part)};`);
       }
+    } else {
+      lines.push(`\t\tmes ${scriptString('No recent comments')};`);
     }
-    if (typeof ticket.url === 'string' && /^https?:\/\//i.test(ticket.url)) {
-      lines.push(`\tmes ${scriptString('Linear: ' + ticket.url)};`);
-    }
+    lines.push('\t\tclose;', '\t}');
     lines.push('\tclose;', '}\n');
   });
 
@@ -108,11 +173,17 @@ function renderTicketNpcs(tickets, { limit = MAX_TICKETS } = {}) {
 
 async function generateIslandNpcs({ baseUrl = process.env.SYNC_BASE_URL || 'http://127.0.0.1:8787', outputPath, fetchImpl = globalThis.fetch } = {}) {
   if (!outputPath) throw new Error('Pass --output or set ISLAND_NPC_OUTPUT to the loaded state/modbuild/npc/linear-mobs/tickets.txt path');
-  const response = await fetchImpl(new URL('/linear/tickets?status=open', baseUrl));
-  if (!response.ok) throw new Error(`Sync returned HTTP ${response.status}`);
-  const payload = await response.json();
-  if (!payload || !Array.isArray(payload.tickets)) throw new Error('Sync returned an invalid ticket list');
-  const rendered = renderTicketNpcs(payload.tickets);
+  const [ticketResponse, prResponse] = await Promise.all([
+    fetchImpl(new URL('/linear/tickets?status=open', baseUrl)),
+    fetchImpl(new URL('/github/prs', baseUrl)),
+  ]);
+  if (!ticketResponse.ok) throw new Error(`Sync ticket list returned HTTP ${ticketResponse.status}`);
+  if (!prResponse.ok) throw new Error(`Sync PR list returned HTTP ${prResponse.status}`);
+  const [ticketPayload, prPayload] = await Promise.all([ticketResponse.json(), prResponse.json()]);
+  if (!ticketPayload || !Array.isArray(ticketPayload.tickets)) throw new Error('Sync returned an invalid ticket list');
+  if (!prPayload || !Array.isArray(prPayload.prs)) throw new Error('Sync returned an invalid PR list');
+  const tickets = enrichTicketsWithOpenPrs(ticketPayload.tickets, prPayload.prs);
+  const rendered = renderTicketNpcs(tickets);
   const target = resolve(outputPath);
   const directory = dirname(target);
   await mkdir(directory, { recursive: true });
@@ -144,4 +215,10 @@ if (require.main === module) {
     });
 }
 
-module.exports = { generateIslandNpcs, renderTicketNpcs };
+module.exports = {
+  enrichTicketsWithOpenPrs,
+  generateIslandNpcs,
+  renderTicketNpcs,
+  statusBucket,
+  visualForTicket,
+};

@@ -35,3 +35,5 @@ curl -sS http://127.0.0.1:8787/linear/tickets/JOR-123
 ```
 
 The Linear webhook accepts either a Linear-style `{ "action": "update", "type": "Issue", "data": { ... } }` payload or `{ "issue": { ... } }` for local experiments. Signature verification is a TODO before exposing `/hooks/linear` through a tunnel. Slack, Intercom, and Grok endpoints return HTTP 501; no service tokens or game assets are needed.
+
+The island NPC generator (`npm run sync:island -- --output <state/modbuild/npc/linear-mobs/tickets.txt>`) reads open tickets and the open PR index. `GET /github/prs` returns `{ "prs": [...] }` from the local fixture/cache, joined through each PR's `ticketId`; it does not call GitHub. Regenerate and use `@reloadscript` to apply the new snapshot.

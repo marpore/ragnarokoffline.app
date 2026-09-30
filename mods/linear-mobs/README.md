@@ -5,14 +5,34 @@ Open tickets from the local sync server become talkable rAthena NPCs on
 rAthena cannot fetch the local HTTP API. The client overlay remains available
 as optional debug UI, but talking to an NPC works without opening it.
 
-The snapshot places up to 100 tickets in a 10 by 10 grid. It leaves a central
-gap for the island entrance and spaces the last row away from the return warp.
-All 100 positions are on walkable `ro_isle` tiles. Priority 1 tickets come
-first, followed by other priorities and ticket ID. Unused slots have no NPC.
-All tickets use the same stock sage sprite. Each NPC shows ID, full title,
-Linear workflow status, priority, assignee, up to three recent comments, and
-the Linear URL when available. The map is intentionally clear of ambient
-monster spawns so ticket NPCs are easy to find.
+The snapshot places up to 100 tickets in a 10 by 10 grid. It leaves the center
+of the north-south entrance route open, reserves the landing, return NPC, and
+walk-over square, and uses walkable `ro_isle` tiles only. Priority 1 tickets
+come first, followed by other priorities and ticket ID. Unused slots have no
+NPC. Each NPC shows ID, full title, Linear workflow status, priority, assignee,
+up to three recent comments, and the Linear URL when available. The map is
+clear of ambient monster spawns so ticket NPCs are easier to find.
+
+## NPC appearance
+
+Status is matched case-insensitively against Linear's workflow name. Unknown
+open status names use the Todo look. An asterisk in the name prefix means the
+ticket has a linked open PR.
+
+| Status | No open PR | Open PR |
+|---|---|---|
+| Todo / Backlog / Triage | `[T]` · `4_M_SAGE_A` | `[T*]` · `4_M_SAGE_C` |
+| In Progress | `[P]` · `4_M_ALCHE` | `[P*]` · `4_M_MAGE` |
+| In Review / Code Review / QA / Testing | `[R]` · `4_M_KNIGHT` | `[R*]` · `4_M_KNIGHT_GOLD` |
+| Other open (for example Blocked) | `[?]` · `4_F_SAGE` | `[?*]` · `4_M_CRU` |
+
+The generator truncates names to 23 characters and removes rAthena header
+delimiters. Short prefixes and varied stock sprites help identify tickets at
+the client's fixed draw distance; this mod does not change that distance.
+
+Talking to a ticket first shows a readable summary, then offers **Show Linear
+link**, **Show PR link**, **Recent comments**, or **Leave**. This is a native
+rAthena dialog and does not require the debug overlay.
 
 ## Enable the personal island
 
@@ -55,6 +75,12 @@ The `custom-map`, `island-ferry`, and `linear-mobs` folders are included under
 4. In game, run `@reloadscript` as a GM. Alternatively, restart the server
    after generation. Then take Ferryman Osric from Prontera or run
    `@warp ro_isle 40 40` as a GM.
+
+The outbound ferry does not change the character savepoint. Near the island
+landing, talk to **Isle Ferryman** and choose **Back to Prontera?**, or walk
+over the small return square beside him. Both routes set the savepoint to
+Prontera `154,178` before warping. A character already on `ro_isle` can use
+either route; a GM can also use `@warp prontera 154 178`.
 
 Regenerate and run `@reloadscript` whenever you want to refresh the island.
 Webhook changes update sync's memory cache; they do not despawn or replace
