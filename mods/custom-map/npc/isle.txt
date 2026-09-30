@@ -1,0 +1,7 @@
+// ro_isle is kept clear for the generated Linear ticket NPCs in linear-mobs.
+// The generated tickets use a 10 by 10 grid and share one stock sprite.
+
+// A way home, well away from where the ferry drops you -- a return warp placed
+// on the arrival point teleports you straight back out again, which looks
+// exactly like the map not working.
+ro_isle,40,68,0	warp	Isle Boat Home#roisle	3,3,prontera,154,178

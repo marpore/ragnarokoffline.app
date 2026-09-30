@@ -14,6 +14,7 @@ const issueNode = (overrides = {}) => ({
   url: 'https://linear.app/acme/issue/RO-101',
   state: { name: 'In Progress', type: 'started' },
   assignee: { name: 'Ada Lovelace' },
+  comments: { nodes: [{ body: 'Latest note', createdAt: '2026-10-01T00:00:00Z', user: { name: 'Ada Lovelace' } }] },
   ...overrides,
 });
 
@@ -52,6 +53,7 @@ test('pullOpenIssues sends the raw API key, queries open issue types, and maps L
   assert.match(request.body.query, /assignedIssues\s*\(/);
   assert.match(request.body.query, /viewer\s*\{[\s\S]*assignedIssues/);
   assert.match(request.body.query, /state|type/i);
+  assert.match(request.body.query, /comments\(last: 3\)/);
   assert.deepEqual(request.body.variables.filter.state.type.in, ['triage', 'backlog', 'unstarted', 'started']);
   assert.deepEqual(tickets, [{
     id: 'RO-101',
@@ -60,7 +62,7 @@ test('pullOpenIssues sends the raw API key, queries open issue types, and maps L
     status: 'open',
     priority: 2,
     assignee: 'Ada Lovelace',
-    comments: [],
+    comments: [{ body: 'Latest note', createdAt: '2026-10-01T00:00:00Z', user: 'Ada Lovelace' }],
     linearId: 'linear-1',
     linearStatus: 'In Progress',
     url: 'https://linear.app/acme/issue/RO-101',

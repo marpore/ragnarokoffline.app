@@ -1,0 +1,3 @@
+// This file is deliberately present so rAthena registers the script path at
+// startup. sync/generate-island-npcs.js replaces its copy under state/modbuild
+// with the latest ticket snapshot; run @reloadscript after generating.

@@ -99,6 +99,18 @@ function createSyncServer(options = {}) {
   }
 
   return http.createServer(async (req, res) => {
+    const origin = req.headers.origin;
+    const localGameOrigin = origin === 'http://127.0.0.1:3338' || origin === 'http://localhost:3338';
+    if (localGameOrigin) {
+      res.setHeader('access-control-allow-origin', origin);
+      res.setHeader('vary', 'Origin');
+      res.setHeader('access-control-allow-methods', 'GET, POST, PATCH, OPTIONS');
+      res.setHeader('access-control-allow-headers', 'Content-Type');
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        return res.end();
+      }
+    }
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
       const path = url.pathname;

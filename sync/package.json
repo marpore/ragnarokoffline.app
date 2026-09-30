@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "sync:dev": "node server.js",
+    "sync:island": "node generate-island-npcs.js",
     "sync:test": "node --test test/*.test.js"
   },
   "engines": {

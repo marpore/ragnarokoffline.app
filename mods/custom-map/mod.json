@@ -1,0 +1,8 @@
+{
+  "name": "custom-map",
+  "version": "1.0.0",
+  "author": "Ragnarok Offline",
+  "description": "The personal ticket island map used by Linear Mobs.",
+  "default": "off",
+  "requires": { "app": ">=1.0.6", "era": "any" }
+}

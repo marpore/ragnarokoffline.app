@@ -5,6 +5,7 @@ const ISSUE_FIELDS = `
   id identifier title description priority url
   state { name type }
   assignee { name }
+  comments(last: 3) { nodes { body createdAt user { name } } }
 `;
 const OPEN_ISSUES_QUERY = `query SyncOpenIssues($filter: IssueFilter!, $after: String) {
   issues(first: 50, after: $after, filter: $filter, orderBy: updatedAt) {
@@ -35,7 +36,11 @@ function toTicket(issue) {
     status: type === 'completed' ? 'done' : type === 'canceled' ? 'canceled' : 'open',
     priority: issue.priority ?? 0,
     assignee: issue.assignee?.name || null,
-    comments: [],
+    comments: (issue.comments?.nodes || []).map(comment => ({
+      body: comment.body || '',
+      createdAt: comment.createdAt || null,
+      user: comment.user?.name || null,
+    })),
     linearId: issue.id,
     linearStatus: issue.state?.name || null,
     url: issue.url || null,
