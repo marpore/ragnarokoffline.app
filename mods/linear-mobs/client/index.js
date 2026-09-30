@@ -1,10 +1,13 @@
-import { syncFetch } from '../shared/sync-fetch.js';
+import { syncFetch } from './sync-fetch.js';
 
 let initialized = false;
 
 // Extension Hooks will later use the shared syncFetch helper for ticket APIs.
 export default function init(_parameters, api) {
-  if (api?.version !== 1) throw new Error('linear-mobs requires client API 1');
+  if (api?.version !== 1) {
+    console.error('[linear-mobs] requires client API 1, got', api?.version);
+    return false;
+  }
   if (initialized) return;
   initialized = true;
 
@@ -12,7 +15,7 @@ export default function init(_parameters, api) {
   host.id = 'linear-mobs-overlay';
   host.innerHTML = [
     '<style>',
-    '#linear-mobs-launcher { position:fixed; top:12px; right:12px; z-index:10020; border:1px solid #c6a96b; border-radius:7px; padding:8px 12px; color:#fff6de; background:#2d2418ef; font:14px system-ui; cursor:pointer; }',
+    '#linear-mobs-launcher { position:fixed; left:12px; bottom:12px; z-index:10020; border:1px solid #c6a96b; border-radius:7px; padding:8px 12px; color:#fff6de; background:#2d2418ef; font:14px system-ui; cursor:pointer; }',
     '#linear-mobs-dialog { width:min(820px, 92vw); max-height:82vh; padding:18px; border:1px solid #b89d68; border-radius:12px; color:#f7f0df; background:#211d18; font:14px system-ui; box-shadow:0 12px 50px #000b; }',
     '#linear-mobs-dialog::backdrop { background:#0009; }',
     '#linear-mobs-dialog header { display:flex; align-items:center; gap:8px; margin-bottom:12px; }',
@@ -43,7 +46,13 @@ export default function init(_parameters, api) {
     '<p id="linear-mobs-status" role="status"></p>',
     '</dialog>',
   ].join('');
+  host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:1500;';
+  const launcherEl = () => host.querySelector('#linear-mobs-launcher');
+  // pointer-events on host none; re-enable on controls after append
   document.body.append(host);
+  for (const el of host.querySelectorAll('button, dialog')) el.style.pointerEvents = 'auto';
+  console.info('[linear-mobs] overlay ready');
+
 
   const launcher = host.querySelector('#linear-mobs-launcher');
   const dialog = host.querySelector('#linear-mobs-dialog');
@@ -204,15 +213,13 @@ export default function init(_parameters, api) {
 
   api.on('map:enter', () => {
     onMap = true;
-    launcher.hidden = false;
     refreshTickets();
   });
   api.on('map:leave', () => {
     onMap = false;
-    launcher.hidden = true;
     if (dialog.open) dialog.close();
   });
-  launcher.hidden = !onMap;
+  launcher.hidden = false;
   api.cleanup(() => {
     window.clearInterval(poll);
     window.removeEventListener('focus', onFocus);

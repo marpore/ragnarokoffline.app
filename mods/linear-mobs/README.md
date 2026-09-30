@@ -1,5 +1,7 @@
 # Linear Mobs
 
+Client plugins can only import files inside their own `client/` folder, so this mod vendors `sync-fetch.js` next to `index.js` (same helper as `mods/shared`).
+
 Linear Mobs shows your open Linear tickets in-game and lets you inspect each
 ticket. In v0, this is an interim HTML overlay with a ticket list and details
 dialog. It does **not** spawn dynamic world Mob entities: the roBrowser client
@@ -34,7 +36,7 @@ curl http://127.0.0.1:8787/health
 curl 'http://127.0.0.1:8787/linear/tickets?status=open'
 ```
 
-Open the in-game ticket list and select a ticket to inspect its ID, title,
+Look for **Linear tasks** (bottom-left; Display is bottom-right). Open the ticket list and select a ticket to inspect its ID, title,
 status, priority, assignee, recent comments, and Linear URL when available.
 The list refreshes every 60 seconds and when the app regains focus or the map
 changes. If the sync server is unavailable, the mod logs a warning, shows an
