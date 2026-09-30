@@ -46,13 +46,9 @@ export default function init(_parameters, api) {
     '<p id="linear-mobs-status" role="status"></p>',
     '</dialog>',
   ].join('');
-  host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:1500;';
-  const launcherEl = () => host.querySelector('#linear-mobs-launcher');
-  // pointer-events on host none; re-enable on controls after append
+  // No full-viewport host: inset:0 + z-index stacks above the in-game cursor sprite.
   document.body.append(host);
-  for (const el of host.querySelectorAll('button, dialog')) el.style.pointerEvents = 'auto';
   console.info('[linear-mobs] overlay ready');
-
 
   const launcher = host.querySelector('#linear-mobs-launcher');
   const dialog = host.querySelector('#linear-mobs-dialog');
