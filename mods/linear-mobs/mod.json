@@ -2,6 +2,7 @@
   "name": "linear-mobs",
   "version": "0.1.0",
   "author": "Ragnarok Offline",
-  "description": "Inspect your open Linear tickets in an in-game task overlay.",
-  "requires": { "app": ">=1.3.5", "era": "any", "mods": ["shared"] }
+  "description": "Read open Linear tickets as talkable NPCs on ro_isle.",
+  "default": "off",
+  "requires": { "app": ">=1.3.5", "era": "any", "mods": ["shared", "custom-map"] }
 }

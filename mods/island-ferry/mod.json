@@ -1,0 +1,8 @@
+{
+  "name": "island-ferry",
+  "version": "1.0.0",
+  "author": "Ragnarok Offline",
+  "description": "A ferryman in Prontera who takes you to the ticket island.",
+  "default": "off",
+  "requires": { "app": ">=1.0.6", "era": "any", "mods": ["custom-map"] }
+}
