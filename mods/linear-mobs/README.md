@@ -5,7 +5,9 @@ Open tickets from the local sync server become talkable rAthena NPCs on
 rAthena cannot fetch the local HTTP API. The client overlay remains available
 as optional debug UI, but talking to an NPC works without opening it.
 
-The snapshot places up to 24 tickets in a 6 by 4 grid. Priority 1 tickets come
+The snapshot places up to 100 tickets in a 10 by 10 grid. It leaves a central
+gap for the island entrance and spaces the last row away from the return warp.
+All 100 positions are on walkable `ro_isle` tiles. Priority 1 tickets come
 first, followed by other priorities and ticket ID. Unused slots have no NPC.
 All tickets use the same stock sage sprite. Each NPC shows ID, full title,
 Linear workflow status, priority, assignee, up to three recent comments, and
@@ -56,8 +58,8 @@ The `custom-map`, `island-ferry`, and `linear-mobs` folders are included under
 
 Regenerate and run `@reloadscript` whenever you want to refresh the island.
 Webhook changes update sync's memory cache; they do not despawn or replace
-in-world NPCs until you regenerate and reload. Tickets beyond the 24-slot cap
-are omitted, with the number reported by the generator.
+in-world NPCs until you regenerate and reload. Tickets beyond the 100-slot cap
+are omitted, with the exact omitted count reported by the generator.
 
 ## Verify
 
@@ -77,6 +79,6 @@ panel.
 ## Limits
 
 This v1 uses real rAthena script NPCs; it does not create client-side fake
-entities. The ticket list is a snapshot capped at 24 entries and needs an
+entities. The ticket list is a snapshot capped at 100 entries and needs an
 explicit generation plus `@reloadscript` to change. There is no live webhook
 despawn, write action, GitHub PR badge, or multi-member island yet.

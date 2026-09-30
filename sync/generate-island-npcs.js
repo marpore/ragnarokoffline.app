@@ -3,9 +3,13 @@
 const { mkdir, rename, unlink, writeFile } = require('node:fs/promises');
 const { dirname, resolve } = require('node:path');
 
-const MAX_TICKETS = 24;
+const MAX_TICKETS = 100;
 const MAX_COMMENTS = 3;
-const GRID = { columns: 6, startX: 20, startY: 48, stepX: 8, stepY: 5 };
+const GRID = {
+  columns: 10,
+  x: [8, 15, 22, 29, 35, 45, 51, 57, 64, 71],
+  y: [10, 16, 22, 28, 34, 40, 46, 52, 58, 64],
+};
 
 function clean(value) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -46,7 +50,8 @@ function priorityRank(priority) {
 
 function displayName(ticket) {
   const id = clean(ticket.id).replace(/#/g, '-');
-  const title = clean(ticket.title).replace(/"/g, "'");
+  // NPC header names cannot contain :, ;, or other script delimiters or the whole file fails to parse.
+  const title = clean(ticket.title).replace(/"/g, "'").replace(/[:;#{}|,\/\\]/g, ' ').replace(/\s+/g, ' ').trim();
   const room = Math.max(4, 23 - Array.from(id).length - 1);
   return `${id} ${Array.from(title).slice(0, room).join('')}`.trim();
 }
@@ -62,21 +67,21 @@ function renderTicketNpcs(tickets, { limit = MAX_TICKETS } = {}) {
   const selected = open.slice(0, limit);
   const lines = [
     '// Generated from GET /linear/tickets?status=open by sync/generate-island-npcs.js.',
-    '// Up to 24 active tickets occupy the fixed 6 by 4 island grid.',
+    `// Up to ${MAX_TICKETS} active tickets occupy the 10 by 10 island grid.`,
     '',
   ];
 
   selected.forEach((ticket, index) => {
     const column = index % GRID.columns;
     const row = Math.floor(index / GRID.columns);
-    const x = GRID.startX + column * GRID.stepX;
-    const y = GRID.startY + row * GRID.stepY;
+    const x = GRID.x[column];
+    const y = GRID.y[row];
     const id = clean(ticket.id);
     const npcLabel = displayName(ticket).replace(/#/g, '-');
     const priority = Number.isInteger(Number(ticket.priority)) ? Number(ticket.priority) : 0;
     const comments = Array.isArray(ticket.comments) ? ticket.comments.slice(-MAX_COMMENTS) : [];
 
-    lines.push(`ro_isle,${x},${y},4\tscript\t${npcLabel}#lnticket${String(index + 1).padStart(2, '0')}\t4_M_SAGE_A,{`);
+    lines.push(`ro_isle,${x},${y},4\tscript\t${npcLabel}#lnticket${String(index + 1).padStart(3, '0')}\t4_M_SAGE_A,{`);
     lines.push(`\tmes ${scriptString(id)};`);
     lines.push(`\tmes ${scriptString('Title:')};`);
     for (const part of wrap(ticket.title)) lines.push(`\tmes ${scriptString(part)};`);
@@ -130,7 +135,7 @@ function cliOutput(args) {
 if (require.main === module) {
   generateIslandNpcs({ outputPath: cliOutput(process.argv.slice(2)) })
     .then(result => {
-      console.log(`Wrote ${result.ticketCount} ticket NPCs (${result.omittedCount} open tickets beyond the 24-slot limit) to ${result.outputPath}`);
+      console.log(`Wrote ${result.ticketCount} ticket NPCs (${result.omittedCount} open tickets beyond the ${MAX_TICKETS}-slot limit) to ${result.outputPath}`);
       console.log('In game, run @reloadscript to apply the snapshot.');
     })
     .catch(error => {

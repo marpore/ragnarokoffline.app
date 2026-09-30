@@ -28,8 +28,8 @@ test('renders open tickets into unique grid NPCs with inspect details and escape
   const result = renderTicketNpcs(tickets);
   assert.equal(result.ticketCount, 2);
   assert.equal(result.omittedCount, 0);
-  assert.match(result.script, /ro_isle,20,48,4\tscript\tRO-201 Urgent ticket#lnticket01\t4_M_SAGE_A/);
-  assert.match(result.script, /ro_isle,28,48,4\tscript\tRO-202 A 'quoted' title#lnticket02\t4_M_SAGE_A/);
+  assert.match(result.script, /ro_isle,8,10,4\tscript\tRO-201 Urgent ticket#lnticket001\t4_M_SAGE_A/);
+  assert.match(result.script, /ro_isle,15,10,4\tscript\tRO-202 A 'quoted' title#lnticket002\t4_M_SAGE_A/);
   assert.match(result.script, /Status: In Progress/);
   assert.match(result.script, /Priority: 3/);
   assert.match(result.script, /Assignee: Ada/);
@@ -40,20 +40,31 @@ test('renders open tickets into unique grid NPCs with inspect details and escape
   assert.equal((result.script.match(/\tscript\t/g) || []).length, 2);
 });
 
-test('caps the layout at 24 and prioritizes urgent tickets before stable ID order', () => {
-  const tickets = Array.from({ length: 30 }, (_, i) => ({
+test('generates 100 NPCs from 105 open tickets, reports 5 omitted, and keeps every slot walkable', async () => {
+  const tickets = Array.from({ length: 105 }, (_, i) => ({
     id: `RO-${String(100 + i).padStart(3, '0')}`,
     title: `Ticket ${i}`,
     status: 'open',
-    priority: i === 29 ? 1 : 4,
+    priority: i === 104 ? 1 : 4,
   }));
   const result = renderTicketNpcs(tickets);
-  assert.equal(result.ticketCount, 24);
-  assert.equal(result.omittedCount, 6);
-  assert.match(result.script, /ro_isle,60,63,4\tscript/);
-  assert.match(result.script, /RO-129 Ticket 29#lnticket01/);
-  assert.doesNotMatch(result.script, /RO-123 Ticket 23/);
-  assert.equal((result.script.match(/\tscript\t/g) || []).length, 24);
+  assert.equal(result.ticketCount, 100);
+  assert.equal(result.omittedCount, 5);
+  assert.match(result.script, /ro_isle,71,64,4\tscript\tRO-198 Ticket 98#lnticket100\t4_M_SAGE_A/);
+  assert.match(result.script, /RO-204 Ticket 104#lnticket001/);
+  assert.doesNotMatch(result.script, /RO-199 Ticket 99/);
+  const coordinates = [...result.script.matchAll(/^ro_isle,(\d+),(\d+),4\tscript/gm)]
+    .map(([, x, y]) => [Number(x), Number(y)]);
+  assert.equal(coordinates.length, 100);
+  const gat = await readFile(join(__dirname, '../../mods/custom-map/data/ro_isle.gat'));
+  const width = gat.readUInt32LE(6);
+  const height = gat.readUInt32LE(10);
+  for (const [x, y] of coordinates) {
+    assert.ok(x >= 0 && x < width && y >= 0 && y < height, `(${x},${y}) inside ${width}x${height}`);
+    assert.equal(gat.readUInt32LE(14 + (y * width + x) * 20 + 16), 0, `(${x},${y}) is walkable`);
+  }
+  assert.ok(coordinates.every(([x, y]) => (x - 40) ** 2 + (y - 40) ** 2 >= 25), 'away from the spawn point');
+  assert.ok(coordinates.every(([x, y]) => (x - 40) ** 2 + (y - 68) ** 2 >= 41), 'away from the return warp');
 });
 
 test('fetches only the sync open-ticket route and atomically writes its generated script', async () => {
@@ -65,13 +76,16 @@ test('fetches only the sync open-ticket route and atomically writes its generate
     outputPath,
     fetchImpl: async url => {
       requested = String(url);
-      return { ok: true, async json() { return { tickets: [{ id: 'RO-1', title: 'Fixture', status: 'open' }] }; } };
+      return { ok: true, async json() { return { tickets: Array.from({ length: 105 }, (_, i) => ({ id: `RO-${i + 1}`, title: `Fixture ${i + 1}`, status: 'open' })) }; } };
     },
   });
 
   assert.equal(requested, 'http://127.0.0.1:8787/linear/tickets?status=open');
-  assert.equal(result.ticketCount, 1);
-  assert.match(await readFile(outputPath, 'utf8'), /RO-1 Fixture/);
+  assert.equal(result.ticketCount, 100);
+  assert.equal(result.omittedCount, 5);
+  const script = await readFile(outputPath, 'utf8');
+  assert.match(script, /lnticket100/);
+  assert.equal((script.match(/^ro_isle,.*\tscript\t/gm) || []).length, 100);
 });
 
 test('sync failure leaves the previous generated script untouched', async () => {
