@@ -13,9 +13,9 @@ const GRID = {
 const MAX_NPC_LABEL_LENGTH = 23;
 const STATUS_STYLES = {
   todo: { prefix: 'T', noPr: '4_M_SAGE_A', pr: '4_M_SAGE_C' },
-  progress: { prefix: 'P', noPr: '4_M_ALCHE', pr: '4_M_MAGE' },
-  review: { prefix: 'R', noPr: '4_M_KNIGHT', pr: '4_M_KNIGHT_GOLD' },
-  other: { prefix: '?', noPr: '4_F_SAGE', pr: '4_M_CRU' },
+  progress: { prefix: 'P', noPr: '4_M_ALCHE_A', pr: '4_M_ALCHE_C' },
+  review: { prefix: 'R', noPr: '4_M_KNIGHT_BLACK', pr: '4_M_KNIGHT_GOLD' },
+  other: { prefix: '?', noPr: '4_F_KAFRA1', pr: '4_M_CRU' },
 };
 
 function clean(value) {
@@ -101,14 +101,36 @@ function visualForTicket(ticket) {
   };
 }
 
+function asciiNpcLabel(value) {
+  // rAthena NAME_LENGTH is a byte-sized C buffer. Non-ASCII (emoji) and
+  // apostrophes in display names have aborted tickets.txt on reload.
+  return clean(value)
+    .replace(/[^\x20-\x7e]/g, ' ')
+    .replace(/[:;#{}|,/\\']/g, ' ')
+    .replace(/"/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function fitBytes(value, maxBytes) {
+  let out = '';
+  for (const ch of value) {
+    const next = out + ch;
+    if (Buffer.byteLength(next, 'utf8') > maxBytes) break;
+    out = next;
+  }
+  return out.trimEnd();
+}
+
 function displayName(ticket, visual) {
-  const safeId = clean(ticket.id).replace(/[:;#{}|,/\\]/g, '-').replace(/"/g, "'");
-  const title = clean(ticket.title).replace(/[:;#{}|,/\\]/g, ' ').replace(/"/g, "'");
+  const safeId = asciiNpcLabel(ticket.id).replace(/ /g, '-');
+  const title = asciiNpcLabel(ticket.title);
   const prefix = visual.prefix + ' ';
-  const id = Array.from(safeId).slice(0, MAX_NPC_LABEL_LENGTH - Array.from(prefix).length).join('');
-  const titleRoom = MAX_NPC_LABEL_LENGTH - Array.from(prefix + id).length - (title ? 1 : 0);
-  return (prefix + id + (titleRoom > 0 && title ? ' ' + Array.from(title).slice(0, titleRoom).join('') : ''))
-    .replace(/\s+/g, ' ').trim().slice(0, MAX_NPC_LABEL_LENGTH);
+  const id = fitBytes(safeId, MAX_NPC_LABEL_LENGTH - Buffer.byteLength(prefix, 'utf8'));
+  const base = prefix + id;
+  const titleRoom = MAX_NPC_LABEL_LENGTH - Buffer.byteLength(base, 'utf8') - (title ? 1 : 0);
+  const withTitle = titleRoom > 0 && title ? base + ' ' + fitBytes(title, titleRoom) : base;
+  return fitBytes(withTitle.replace(/\s+/g, ' ').trim(), MAX_NPC_LABEL_LENGTH);
 }
 
 function renderTicketNpcs(tickets, { limit = MAX_TICKETS } = {}) {

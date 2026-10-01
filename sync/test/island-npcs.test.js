@@ -34,7 +34,7 @@ test('renders open tickets into unique grid NPCs with inspect details and escape
   assert.equal(result.ticketCount, 2);
   assert.equal(result.omittedCount, 0);
   assert.match(result.script, /ro_isle,8,10,4\tscript\t\[T\] RO-201 Urgent ticke#lnticket001\t4_M_SAGE_A/);
-  assert.match(result.script, /ro_isle,15,10,4\tscript\t\[P\] RO-202 A 'quoted' t#lnticket002\t4_M_ALCHE/);
+  assert.match(result.script, /ro_isle,15,10,4\tscript\t\[P\] RO-202 A quoted tit#lnticket002\t4_M_ALCHE_A/);
   assert.match(result.script, /Status: In Progress/);
   assert.match(result.script, /Priority: 3/);
   assert.match(result.script, /Assignee: Ada/);
@@ -54,11 +54,11 @@ test('selects the locked status and open-PR sprite/prefix matrix with unknown st
     ['Todo', false, '[T]', '4_M_SAGE_A'],
     ['Backlog', true, '[T*]', '4_M_SAGE_C'],
     ['Triage', false, '[T]', '4_M_SAGE_A'],
-    ['In Progress', false, '[P]', '4_M_ALCHE'],
-    ['in progress', true, '[P*]', '4_M_MAGE'],
-    ['In Review', false, '[R]', '4_M_KNIGHT'],
+    ['In Progress', false, '[P]', '4_M_ALCHE_A'],
+    ['in progress', true, '[P*]', '4_M_ALCHE_C'],
+    ['In Review', false, '[R]', '4_M_KNIGHT_BLACK'],
     ['Code Review', true, '[R*]', '4_M_KNIGHT_GOLD'],
-    ['QA', false, '[R]', '4_M_KNIGHT'],
+    ['QA', false, '[R]', '4_M_KNIGHT_BLACK'],
     ['Testing', true, '[R*]', '4_M_KNIGHT_GOLD'],
     ['Blocked', true, '[?*]', '4_M_CRU'],
     ['New workflow state', false, '[T]', '4_M_SAGE_A'],
@@ -94,17 +94,19 @@ test('joins only open PRs by ticketId and keeps PRs available to already enriche
   assert.equal(visualForTicket({ ...joined[1], pr: { state: 'closed' } }).hasPr, false);
 });
 
-test('NPC names are sanitized and limited to 23 characters before their unique suffix', () => {
+test('NPC names are ASCII, apostrophe-safe, and limited to 23 bytes before their unique suffix', () => {
   const result = renderTicketNpcs([{
     id: 'RO/9:;#{}|,\\',
-    title: 'a title with :;#{}|,/\\ forbidden delimiters and more text',
+    title: "a title with :;#{}|,/\\ 'quotes' and \u{1F680} emoji plus more text",
     status: 'open',
     linearStatus: 'Todo',
   }]);
   const header = result.script.split('\n').find(line => line.includes('\tscript\t'));
   const name = header.split('\tscript\t')[1].split('#lnticket')[0];
-  assert.ok(Array.from(name).length <= 23);
-  assert.doesNotMatch(name, /[:;#{}|,/\\]/);
+  assert.ok(Buffer.byteLength(name, 'utf8') <= 23);
+  assert.doesNotMatch(name, /[^\x20-\x7e]/);
+  assert.doesNotMatch(name, /[:;#{}|,/\\']/);
+  assert.doesNotMatch(name, /['"]/);
 });
 
 test('generates 100 NPCs from 105 open tickets, reports 5 omitted, and keeps every slot walkable', async () => {
@@ -179,7 +181,7 @@ test('generator joins the sync PR index into sprite, display prefix, menu, and l
   });
   assert.equal(result.ticketCount, 2);
   const script = await readFile(outputPath, 'utf8');
-  assert.match(script, /\[P\*\] RO-1 [^#]+#lnticket001\t4_M_MAGE/);
+  assert.match(script, /\[P\*\] RO-1 [^#]+#lnticket001\t4_M_ALCHE_C/);
   assert.match(script, /PR: https:\/\/github\.com\/example\/repo\/pull\/42/);
   assert.match(script, /select\("Show Linear link:Show PR link:Recent comments:Leave"\)/);
   assert.match(script, /\[T\] RO-2 [^#]+#lnticket002\t4_M_SAGE_A/);

@@ -22,13 +22,14 @@ ticket has a linked open PR.
 | Status | No open PR | Open PR |
 |---|---|---|
 | Todo / Backlog / Triage | `[T]` · `4_M_SAGE_A` | `[T*]` · `4_M_SAGE_C` |
-| In Progress | `[P]` · `4_M_ALCHE` | `[P*]` · `4_M_MAGE` |
-| In Review / Code Review / QA / Testing | `[R]` · `4_M_KNIGHT` | `[R*]` · `4_M_KNIGHT_GOLD` |
-| Other open (for example Blocked) | `[?]` · `4_F_SAGE` | `[?*]` · `4_M_CRU` |
+| In Progress | `[P]` · `4_M_ALCHE_A` | `[P*]` · `4_M_ALCHE_C` |
+| In Review / Code Review / QA / Testing | `[R]` · `4_M_KNIGHT_BLACK` | `[R*]` · `4_M_KNIGHT_GOLD` |
+| Other open (for example Blocked) | `[?]` · `4_F_KAFRA1` | `[?*]` · `4_M_CRU` |
 
-The generator truncates names to 23 characters and removes rAthena header
-delimiters. Short prefixes and varied stock sprites help identify tickets at
-the client's fixed draw distance; this mod does not change that distance.
+The generator keeps display names ASCII-only and within rAthena's 23-byte
+`NAME_LENGTH`, stripping emoji and header delimiters (including apostrophes).
+Short prefixes and varied stock sprites help identify tickets at the client's
+fixed draw distance; this mod does not change that distance.
 
 Talking to a ticket first shows a readable summary, then offers **Show Linear
 link**, **Show PR link**, **Recent comments**, or **Leave**. This is a native
