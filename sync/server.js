@@ -175,6 +175,10 @@ function createSyncServer(options = {}) {
       }
 
       const prMatch = /^\/github\/prs\/([^/]+)$/.exec(path);
+      if (method === 'GET' && path === '/github/prs') {
+        const prs = [...store.prs.values()].filter(pr => String(pr.state || '').toLowerCase() === 'open');
+        return send(res, 200, { prs });
+      }
       if (method === 'GET' && prMatch) return send(res, store.prs.has(prMatch[1]) ? 200 : 404, store.prs.get(prMatch[1]) || { error: 'not_found' });
 
       const issueMatch = /^\/sentry\/issues\/([^/]+)$/.exec(path);

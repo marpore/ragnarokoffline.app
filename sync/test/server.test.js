@@ -37,6 +37,7 @@ test('health, status, and fixture reads', async () => {
   assert.deepEqual(tickets.body.tickets.map(ticket => ticket.id), ['JOR-123']);
   assert.equal((await request('/linear/tickets/JOR-123')).body.title, 'Review the login flow');
   assert.equal((await request('/github/prs/42')).body.ticketId, 'JOR-123');
+  assert.deepEqual((await request('/github/prs')).body.prs.map(pr => pr.ticketId), ['JOR-123']);
   assert.equal((await request('/sentry/issues/ISSUE-7')).body.status, 'unresolved');
 });
 
