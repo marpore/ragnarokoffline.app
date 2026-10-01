@@ -72,7 +72,10 @@ The `custom-map`, `island-ferry`, and `linear-mobs` folders are included under
    `$RAGNAROKMAC_STATE/modbuild/npc/linear-mobs/tickets.txt` for the default
    path above. The generator reads only `GET /linear/tickets?status=open`,
    writes atomically, and leaves the last working snapshot alone if sync is
-   unavailable.
+   unavailable. When `--output` points at `state/modbuild/npc/linear-mobs/tickets.txt`,
+   it also mirrors the snapshot to `state/mods/linear-mobs/npc/tickets.txt` so
+   the next stack assemble does not replace live tickets with the bundled empty
+   stub (assemble rebuilds `modbuild` from `state/mods` every start).
 4. In game, run `@reloadscript` as a GM. Alternatively, restart the server
    after generation. Then take Ferryman Osric from Prontera or run
    `@warp ro_isle 40 40` as a GM.
