@@ -1,7 +1,7 @@
 'use strict';
 
 const { mkdir, rename, unlink, writeFile } = require('node:fs/promises');
-const { dirname, resolve } = require('node:path');
+const { dirname, resolve, sep } = require('node:path');
 
 const MAX_TICKETS = 100;
 const MAX_COMMENTS = 3;
@@ -102,8 +102,9 @@ function visualForTicket(ticket) {
 }
 
 function asciiNpcLabel(value) {
-  // rAthena NAME_LENGTH is a byte-sized C buffer. Non-ASCII (emoji) and
-  // apostrophes in display names have aborted tickets.txt on reload.
+  // rAthena stores the NPC display name in a NAME_LENGTH (24-byte) buffer.
+  // Non-ASCII, apostrophes, and script delimiters have aborted tickets.txt on
+  // reload; strip them so every label stays a safe ASCII byte string.
   return clean(value)
     .replace(/[^\x20-\x7e]/g, ' ')
     .replace(/[:;#{}|,/\\']/g, ' ')
@@ -122,15 +123,20 @@ function fitBytes(value, maxBytes) {
   return out.trimEnd();
 }
 
-function displayName(ticket, visual) {
+function displayName(ticket, visual, uniqueSuffix) {
+  // Keep display+::unique inside rAthena's 23-byte name field budget so the
+  // header stays aligned and stock sprite constants are not mis-read.
+  const uniqueBudget = Buffer.byteLength(uniqueSuffix, 'utf8');
+  const displayBudget = MAX_NPC_LABEL_LENGTH - uniqueBudget;
+  if (displayBudget < 4) throw new RangeError('unique suffix leaves no room for display name');
   const safeId = asciiNpcLabel(ticket.id).replace(/ /g, '-');
   const title = asciiNpcLabel(ticket.title);
   const prefix = visual.prefix + ' ';
-  const id = fitBytes(safeId, MAX_NPC_LABEL_LENGTH - Buffer.byteLength(prefix, 'utf8'));
+  const id = fitBytes(safeId, displayBudget - Buffer.byteLength(prefix, 'utf8'));
   const base = prefix + id;
-  const titleRoom = MAX_NPC_LABEL_LENGTH - Buffer.byteLength(base, 'utf8') - (title ? 1 : 0);
+  const titleRoom = displayBudget - Buffer.byteLength(base, 'utf8') - (title ? 1 : 0);
   const withTitle = titleRoom > 0 && title ? base + ' ' + fitBytes(title, titleRoom) : base;
-  return fitBytes(withTitle.replace(/\s+/g, ' ').trim(), MAX_NPC_LABEL_LENGTH);
+  return fitBytes(withTitle.replace(/\s+/g, ' ').trim(), displayBudget);
 }
 
 function renderTicketNpcs(tickets, { limit = MAX_TICKETS } = {}) {
@@ -155,13 +161,15 @@ function renderTicketNpcs(tickets, { limit = MAX_TICKETS } = {}) {
     const y = GRID.y[row];
     const id = clean(ticket.id);
     const visual = visualForTicket(ticket);
-    const npcLabel = displayName(ticket, visual);
+    // Short ::unique keeps the whole name field inside the 23-byte budget.
+    const unique = `::lnt${String(index + 1).padStart(3, '0')}`;
+    const npcLabel = displayName(ticket, visual, unique);
     const priority = Number.isInteger(Number(ticket.priority)) ? Number(ticket.priority) : 0;
     const comments = Array.isArray(ticket.comments) ? ticket.comments.slice(-MAX_COMMENTS) : [];
     const linearUrl = typeof ticket.url === 'string' && /^https?:\/\//i.test(ticket.url) ? ticket.url : '';
     const prUrl = typeof visual.prUrl === 'string' && /^https?:\/\//i.test(visual.prUrl) ? visual.prUrl : '';
 
-    lines.push(`ro_isle,${x},${y},4\tscript\t${npcLabel}#lnticket${String(index + 1).padStart(3, '0')}\t${visual.sprite},{`);
+    lines.push(`ro_isle,${x},${y},4\tscript\t${npcLabel}${unique}\t${visual.sprite},{`);
     lines.push(`\tmes ${scriptString('Ticket: ' + id)};`);
     lines.push(`\tmes ${scriptString('Title:')};`);
     for (const part of wrap(ticket.title)) lines.push(`\tmes ${scriptString(part)};`);
@@ -206,18 +214,39 @@ async function generateIslandNpcs({ baseUrl = process.env.SYNC_BASE_URL || 'http
   if (!prPayload || !Array.isArray(prPayload.prs)) throw new Error('Sync returned an invalid PR list');
   const tickets = enrichTicketsWithOpenPrs(ticketPayload.tickets, prPayload.prs);
   const rendered = renderTicketNpcs(tickets);
-  const target = resolve(outputPath);
-  const directory = dirname(target);
-  await mkdir(directory, { recursive: true });
-  const temp = `${target}.${process.pid}.tmp`;
-  try {
-    await writeFile(temp, rendered.script, { encoding: 'utf8' });
-    await rename(temp, target);
-  } catch (error) {
-    try { await unlink(temp); } catch {}
-    throw error;
+  const targets = [resolve(outputPath)];
+  // modbuild is wiped and rebuilt from state/mods (or bundled runtime stubs)
+  // on every stack start. Mirror the snapshot into the durable overlay so the
+  // next assemble does not replace live tickets with the empty stub.
+  // modbuild layout is npc/<mod>/<file>; durable mods layout is <mod>/npc/<file>.
+  const modbuildMarker = `${sep}modbuild${sep}npc${sep}`;
+  const resolvedOut = resolve(outputPath);
+  const markerAt = resolvedOut.indexOf(modbuildMarker);
+  if (markerAt >= 0) {
+    const stateRoot = resolvedOut.slice(0, markerAt);
+    const afterNpc = resolvedOut.slice(markerAt + modbuildMarker.length);
+    const slash = afterNpc.indexOf(sep);
+    if (slash > 0) {
+      const modName = afterNpc.slice(0, slash);
+      const rest = afterNpc.slice(slash + sep.length);
+      targets.push(resolve(stateRoot, 'mods', modName, 'npc', rest));
+    }
   }
-  return { ...rendered, outputPath: target };
+  const written = [];
+  for (const target of targets) {
+    const directory = dirname(target);
+    await mkdir(directory, { recursive: true });
+    const temp = `${target}.${process.pid}.tmp`;
+    try {
+      await writeFile(temp, rendered.script, { encoding: 'utf8' });
+      await rename(temp, target);
+    } catch (error) {
+      try { await unlink(temp); } catch {}
+      throw error;
+    }
+    written.push(target);
+  }
+  return { ...rendered, outputPath: written[0], outputPaths: written };
 }
 
 function cliOutput(args) {
@@ -228,7 +257,8 @@ function cliOutput(args) {
 if (require.main === module) {
   generateIslandNpcs({ outputPath: cliOutput(process.argv.slice(2)) })
     .then(result => {
-      console.log(`Wrote ${result.ticketCount} ticket NPCs (${result.omittedCount} open tickets beyond the ${MAX_TICKETS}-slot limit) to ${result.outputPath}`);
+      const paths = result.outputPaths || [result.outputPath];
+      console.log(`Wrote ${result.ticketCount} ticket NPCs (${result.omittedCount} open tickets beyond the ${MAX_TICKETS}-slot limit) to ${paths.join(' and ')}`);
       console.log('In game, run @reloadscript to apply the snapshot.');
     })
     .catch(error => {
