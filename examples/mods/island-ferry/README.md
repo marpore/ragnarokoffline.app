@@ -8,13 +8,17 @@ its own folder.
 the failure is loud in a useful way: `warp` reports the map is unknown, and the
 NPC's `warp` command fails at runtime with the map name in the map server log.
 
-Two ways in, both in `npc/ferry.txt`:
+Outbound is **Ferryman Osric** only (`prontera 155 178` in `npc/ferry.txt`) —
+talk to take the boat. There is no walk-over jetty warp; that duplicated the
+same trip next to Osric.
 
-- **A warp square** at `prontera 159 178`. Walk into it, and you are across.
-  Four numbers after the name: the trigger area's width and height, then the
-  destination map and coordinates.
-- **Ferryman Osric** at `prontera 155 178`, who asks first. Same trip, but an
-  NPC can charge zeny, check a level or refuse — a warp square cannot.
+Together with `custom-map`, the round trip is: Osric → island landing at
+`ro_isle 40 40` → visible Isle Ferryman / return square just south of the
+landing → Prontera `154,178`. The outbound ferry does not change the
+savepoint. Both island return routes set it to Prontera before warping, so
+normal logins and new characters continue to start from Prontera. If a
+character is already on the island, talk to Isle Ferryman or walk over the
+nearby return square.
 
 ## What to look at first
 
@@ -22,13 +26,6 @@ Two ways in, both in `npc/ferry.txt`:
 dialogue and *then* ends the script; `close2` closes the box and keeps running,
 which is what you want when the next thing you do is move the player. Using
 `close` here leaves the script sitting on a box that is already gone.
-
-## Coming back
-
-The return warp is in `custom-map`, not here, and it is deliberately at the far
-end of the island rather than under the arrival point. A return warp placed
-where the ferry drops you fires the instant you land and puts you back in
-Prontera — which looks exactly like the map not working at all.
 
 ## Applying it
 
